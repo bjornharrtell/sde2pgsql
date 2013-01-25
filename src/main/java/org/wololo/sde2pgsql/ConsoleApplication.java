@@ -1,4 +1,4 @@
-package util;
+package org.wololo.sde2pgsql;
 
 import java.sql.SQLException;
 

@@ -1,35 +1,20 @@
-package util;
+package org.wololo.sde2pgsql;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.Map;
+import java.sql.*;
+import java.util.*;
 
 import org.apache.log4j.Logger;
-import org.postgis.Geometry;
-import org.postgis.PGgeometryLW;
-import org.postgis.binary.BinaryParser;
+import org.postgis.*;
+import org.postgis.binary.*;
 
-import com.esri.sde.sdk.client.SeColumnDefinition;
-import com.esri.sde.sdk.client.SeConnection;
-import com.esri.sde.sdk.client.SeException;
-import com.esri.sde.sdk.client.SeLayer;
-import com.esri.sde.sdk.client.SeQuery;
-import com.esri.sde.sdk.client.SeRow;
-import com.esri.sde.sdk.client.SeShape;
-import com.esri.sde.sdk.client.SeSqlConstruct;
-import com.esri.sde.sdk.client.SeTable;
+import com.esri.sde.sdk.client.*;
 
 public class SDE2PostGISExporter {
 	SeConnection seConnection = null;
 	SeTable seTable;
 	Connection connection = null;
 	PreparedStatement preparedStatement = null;
-	
+
 	int buffer;
 	int srid;
 	String sdeQualifiedName;
@@ -37,27 +22,26 @@ public class SDE2PostGISExporter {
 	String destinationTable;
 
 	/**
-	 * Prepared list of column definition strings for PostGIS table DDL 
+	 * Prepared list of column definition strings for PostGIS table DDL
 	 */
 	ArrayList<String> columnDefinitions;
-	
+
 	/**
 	 * Cached list of SDE column type codes
 	 */
 	ArrayList<Integer> sdeColumnTypes;
-	
+
 	/**
 	 * Map PostGIS column index to SDE column index
 	 */
 	Map<Integer, Integer> columnMapping;
-	
+
 	/**
 	 * Number of columns in PostGIS table
 	 */
 	int columns;
 
-
-	public static final Map<Integer , String> sdeColumnTypeMap;
+	public static final Map<Integer, String> sdeColumnTypeMap;
 
 	static {
 		sdeColumnTypeMap = new HashMap<Integer, String>();
@@ -68,8 +52,8 @@ public class SDE2PostGISExporter {
 		sdeColumnTypeMap.put(SeColumnDefinition.TYPE_FLOAT64, "double precision");
 		sdeColumnTypeMap.put(SeColumnDefinition.TYPE_DATE, "timestamp");
 		sdeColumnTypeMap.put(SeColumnDefinition.TYPE_STRING, "character varying");
-		//sdeColumnTypeMap.put(SeColumnDefinition.TYPE_SHAPE, "geometry");
-  }
+		// sdeColumnTypeMap.put(SeColumnDefinition.TYPE_SHAPE, "geometry");
+	}
 
 	private static Logger log = Logger.getLogger(SDE2PostGISExporter.class);
 
@@ -77,14 +61,14 @@ public class SDE2PostGISExporter {
 		columnMapping.put(columnDefinitions.size(), index);
 		columnDefinitions.add(typeName + " " + type);
 	}
-	
+
 	void convertSDEColumns() throws SeException, SQLException {
 		log.info("Converting SDE column types to PostgreSQL column types");
 
-		columnMapping =new HashMap<Integer, Integer>();
+		columnMapping = new HashMap<Integer, Integer>();
 		columnDefinitions = new ArrayList<String>();
 		sdeColumnTypes = new ArrayList<Integer>();
-		
+
 		int index = 0;
 		int shapeIndex = 0;
 		for (SeColumnDefinition seColumnDefinition : seTable.describe()) {
@@ -92,23 +76,23 @@ public class SDE2PostGISExporter {
 			int size = seColumnDefinition.getSize();
 			int type = seColumnDefinition.getType();
 			sdeColumnTypes.add(type);
-			
+
 			if (sdeColumnTypeMap.containsKey(type)) {
 				String typeName = sdeColumnTypeMap.get(type);
 				if (type == SeColumnDefinition.TYPE_STRING) {
-					typeName += "("+size+")";
+					typeName += "(" + size + ")";
 				}
 				addPostGISColumnDefinition(name, typeName, index);
 			}
-			
+
 			// save index for SDE shape column
 			if (type == SeColumnDefinition.TYPE_SHAPE) {
 				shapeIndex = index;
 			}
-			
+
 			index++;
 		}
-		
+
 		// save column mapping for PostGIS geometry column
 		columnMapping.put(columnDefinitions.size(), shapeIndex);
 		columns = columnDefinitions.size() + 1;
@@ -161,8 +145,16 @@ public class SDE2PostGISExporter {
 		log.info("Creating spatial column");
 
 		statement = connection.createStatement();
-		String wktType = "GEOMETRY"; //determineSpatialType(seTable);
-		sql += "SELECT AddGeometryColumn('" + destinationSchema + "', '" + featureName + "', 'geom', " + srid + ", '" + wktType + "', 2)";
+		String wktType = "GEOMETRY"; // determineSpatialType(seTable);
+		sql += "SELECT AddGeometryColumn('"
+				+ destinationSchema
+				+ "', '"
+				+ featureName
+				+ "', 'geom', "
+				+ srid
+				+ ", '"
+				+ wktType
+				+ "', 2)";
 		log.debug("About to commit '" + sql + "'");
 		statement.execute(sql);
 		statement.close();
@@ -223,9 +215,11 @@ public class SDE2PostGISExporter {
 	 * Export SDE table name to PostGIS destination schema. Will always clean up connections.
 	 * 
 	 * @param buffer
-	 *            set to something sensible, like dividing total features by 100-1000 but use lower if individual features are complex.
+	 *            set to something sensible, like dividing total features by 100-1000 but use lower
+	 *            if individual features are complex.
 	 */
-	public void export(String sdeQualifiedName, String destinationSchema, int buffer, int srid) throws SeException, SQLException, ClassNotFoundException {
+	public void export(String sdeQualifiedName, String destinationSchema, int buffer, int srid)
+			throws SeException, SQLException, ClassNotFoundException {
 		log.info("Exporting " + sdeQualifiedName + " to schema " + destinationSchema);
 
 		this.sdeQualifiedName = sdeQualifiedName;
@@ -259,7 +253,7 @@ public class SDE2PostGISExporter {
 
 	void parseColumnValue(SeRow row, int index) throws SQLException, SeException {
 		int sdeIndex = columnMapping.get(index);
-		
+
 		index++;
 
 		// TODO: handle nulls here? need to set second arg correctly..
@@ -342,15 +336,14 @@ public class SDE2PostGISExporter {
 		log.info("Reading shapes");
 
 		SeRow row = null;
-		
+
 		int totalCount = 0;
 		int count = 0;
 		while ((row = query.fetch()) != null) {
 			for (int i = 0; i < columns; i++) {
-
 				parseColumnValue(row, i);
 			}
-			
+
 			preparedStatement.executeUpdate();
 
 			count++;
